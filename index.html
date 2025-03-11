@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bitcoin Trading System</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .action-sell {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .action-buy {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .action-hold {
+            color: #6c757d;
+        }
+        .stats-card {
+            text-align: center;
+            padding: 15px;
+        }
+        .stats-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .positive {
+            color: #28a745;
+        }
+        .negative {
+            color: #dc3545;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        #actionTableContainer {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="mb-4">
+            <div class="row">
+                <div class="col-md-8">
+                    <h1>AI Bitcoin Trading System</h1>
+                    <p class="lead">Test your AI trading model with historical Bitcoin data</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="card stats-card">
+                        <h5>Current BTC Price</h5>
+                        <div class="stats-value">${{ latest_price|round(2) }}</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Trading Simulation</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="simulationForm">
+                            <div class="mb-3">
+                                <label for="startDate" class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="startDate" value="{{ default_start_date }}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="endDate" class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="endDate" value="{{ default_end_date }}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="initialCash" class="form-label">Initial Investment ($)</label>
+                                <input type="number" class="form-control" id="initialCash" value="10000" min="100" step="100" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Run Simulation</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card" id="performanceCard" style="display: none;">
+                    <div class="card-header">
+                        <h5>Performance Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="stats-card">
+                                    <h6>Initial Investment</h6>
+                                    <div class="stats-value" id="initialInvestment">$10,000</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stats-card">
+                                    <h6>Final Value</h6>
+                                    <div class="stats-value" id="finalValue">$12,345</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-6">
+                                <div class="stats-card">
+                                    <h6>AI Strategy Return</h6>
+                                    <div class="stats-value" id="returnPct">+23.45%</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stats-card">
+                                    <h6>Buy & Hold Return</h6>
+                                    <div class="stats-value" id="btcReturnPct">+18.67%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Bitcoin Price & Portfolio Performance</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="priceChart" height="300"></canvas>
+                    </div>
+                </div>
+
+                <div class="loading" id="loadingIndicator">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Running simulation...</p>
+                </div>
+
+                <div class="card" id="actionsCard" style="display: none;">
+                    <div class="card-header">
+                        <h5>Trading Actions</h5>
+                    </div>
+                    <div class="card-body" id="actionTableContainer">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Price</th>
+                                    <th>Action</th>
+                                    <th>Portfolio Value</th>
+                                    <th>Cash</th>
+                                    <th>BTC Held</th>
+                                </tr>
+                            </thead>
+                            <tbody id="actionTableBody">
+                                <!-- Action data will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Set default dates (3 months of data)
+        document.addEventListener('DOMContentLoaded', function() {
+            // Default dates should now come from Flask template
+            // This is a fallback in case they aren't provided
+            if (!document.getElementById('startDate').value || !document.getElementById('endDate').value) {
+                const today = new Date();
+                const threeMonthsAgo = new Date();
+                threeMonthsAgo.setMonth(today.getMonth() - 3);
+                
+                document.getElementById('endDate').valueAsDate = today;
+                document.getElementById('startDate').valueAsDate = threeMonthsAgo;
+            }
+        });
+
+        // Chart initialization
+        let priceChart;
+        
+        function initializeChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Bitcoin Price',
+                            data: [],
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                            yAxisID: 'y',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Portfolio Value',
+                            data: [],
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            yAxisID: 'y1',
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Bitcoin Price ($)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Portfolio Value ($)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        initializeChart();
+
+        // Form submission
+        document.getElementById('simulationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('actionsCard').style.display = 'none';
+            document.getElementById('performanceCard').style.display = 'none';
+            
+            // Get form values
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const initialCash = document.getElementById('initialCash').value;
+            
+            // Call the API to run simulation
+            fetch('/api/simulate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    start_date: startDate,
+                    end_date: endDate,
+                    initial_cash: initialCash
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading indicator
+                document.getElementById('loadingIndicator').style.display = 'none';
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                // Update chart
+                updateChart(data.dates, data.prices, data.portfolio_values);
+                
+                // Update performance stats
+                updatePerformance(data.performance);
+                
+                // Update actions table
+                updateActionsTable(data.actions);
+                
+                // Show cards
+                document.getElementById('actionsCard').style.display = 'block';
+                document.getElementById('performanceCard').style.display = 'block';
+            })
+            .catch(error => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                console.error('Error:', error);
+                alert('Error occurred. Please check the browser console for details.');
+            });
+        });
+
+        function updateChart(dates, prices, portfolioValues) {
+            // Update chart data
+            priceChart.data.labels = dates;
+            priceChart.data.datasets[0].data = prices;
+            priceChart.data.datasets[1].data = portfolioValues;
+            priceChart.update();
+        }
+
+        function updatePerformance(performance) {
+            // Update performance summary
+            document.getElementById('initialInvestment').textContent = '$' + formatNumber(performance.initial_investment);
+            document.getElementById('finalValue').textContent = '$' + formatNumber(performance.final_value);
+            
+            const returnElement = document.getElementById('returnPct');
+            returnElement.textContent = formatPercentage(performance.return_pct);
+            returnElement.className = 'stats-value ' + (performance.return_pct >= 0 ? 'positive' : 'negative');
+            
+            const btcReturnElement = document.getElementById('btcReturnPct');
+            btcReturnElement.textContent = formatPercentage(performance.btc_return_pct);
+            btcReturnElement.className = 'stats-value ' + (performance.btc_return_pct >= 0 ? 'positive' : 'negative');
+        }
+
+        function updateActionsTable(actions) {
+            const tableBody = document.getElementById('actionTableBody');
+            tableBody.innerHTML = '';
+            
+            actions.forEach(action => {
+                const row = document.createElement('tr');
+                
+                // Style based on action
+                let actionClass = '';
+                if (action.action === 'BUY') actionClass = 'action-buy';
+                else if (action.action === 'SELL') actionClass = 'action-sell';
+                else actionClass = 'action-hold';
+                
+                row.innerHTML = `
+                    <td>${action.date}</td>
+                    <td>$${formatNumber(action.price)}</td>
+                    <td class="${actionClass}">${action.action}</td>
+                    <td>$${formatNumber(action.portfolio_value)}</td>
+                    <td>$${formatNumber(action.cash)}</td>
+                    <td>${action.bitcoin_held.toFixed(6)}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        function formatNumber(number) {
+            return new Intl.NumberFormat('en-US', { 
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2 
+            }).format(number);
+        }
+        
+        function formatPercentage(number) {
+            const sign = number >= 0 ? '+' : '';
+            return sign + number.toFixed(2) + '%';
+        }
+    </script>
+</body>
+</html>
