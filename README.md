@@ -1,4 +1,7 @@
-# ai_trading_analysis
-workable_prototype_model to help you to trade in bitcoin
+# improvement made on ai_trading_analysis
 
-*only test for 1 episode but a scallable version is also provided.
+ai_trading_analysis_data enhance on data engineering
+
+ai_trading_analysis_data_model enhance on model
+
+ai_trading_analysis_4 enhanced on improved training and one more forget edy
